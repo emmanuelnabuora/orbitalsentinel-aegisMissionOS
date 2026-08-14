@@ -1,0 +1,51 @@
+[project]
+name = "aegis-api"
+version = "0.1.0"
+description = "AEGIS MissionOS - mission assurance API"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.32",
+  "pydantic-settings>=2.6",
+  "sqlalchemy[asyncio]>=2.0",
+  "asyncpg>=0.30",
+  "alembic>=1.14",
+  "pyotp>=2.9",
+  "reportlab>=4.4",
+  "qrcode>=8.0",
+  "cryptography>=43",
+  "redis>=5.2",
+  "PyJWT>=2.10",
+  "argon2-cffi>=23.1",
+  "structlog>=24.4",
+  "email-validator>=2.2",
+  "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = ["aiosqlite>=0.20", "pytest>=8", "fakeredis>=2.26",
+  "pytest-asyncio>=0.24", "httpx>=0.27", "ruff>=0.8"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+markers = [
+    "live: hits the real Anthropic API. Requires ANTHROPIC_API_KEY and AEGIS_RUN_LIVE_TESTS=1; skipped otherwise.",
+]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S105", "S106"]

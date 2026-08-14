@@ -1,0 +1,142 @@
+name: CD
+
+# Releases deploy on version tags. Manual dispatch from main covers hotfix
+# re-deploys. Identity is keyless: the job assumes an AWS role via OIDC
+# (infrastructure/terraform/cd.tf) — no AWS keys exist in GitHub. (ADR-0005)
+#
+# Required repository variables (values from `terraform output`):
+#   AWS_REGION, AWS_DEPLOY_ROLE_ARN, ECR_REPOSITORY_URL,
+#   ECS_CLUSTER, ECS_SERVICE, MIGRATE_TASK_FAMILY,
+#   PRIVATE_SUBNET_IDS (comma-separated), API_SECURITY_GROUP_ID,
+#   WEB_BUCKET, CLOUDFRONT_DISTRIBUTION_ID
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  id-token: write # OIDC token for AWS role assumption
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false # never interrupt a deploy mid-flight
+
+jobs:
+  test:
+    name: Gate — full suite on the deploy dialect
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: apps/api } }
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: aegis
+          POSTGRES_PASSWORD: aegis-ci
+          POSTGRES_DB: aegis_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U aegis"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -e ".[dev]"
+      - run: ruff check src tests
+      - name: Tests (postgres)
+        env:
+          TEST_DATABASE_URL: postgresql+asyncpg://aegis:aegis-ci@localhost:5432/aegis_test
+        run: pytest -q
+
+  deploy:
+    name: Deploy API + web
+    needs: test
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assume deploy role (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push API image
+        id: image
+        run: |
+          IMAGE="${{ vars.ECR_REPOSITORY_URL }}:${GITHUB_SHA::12}"
+          docker build -t "$IMAGE" apps/api
+          docker push "$IMAGE"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Register migrate task revision with new image
+        id: migrate-def
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition "${{ vars.MIGRATE_TASK_FAMILY }}" \
+            --query taskDefinition > taskdef.json
+          jq --arg IMG "${{ steps.image.outputs.image }}" \
+            '.containerDefinitions[0].image = $IMG
+             | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                   .compatibilities, .registeredAt, .registeredBy)' \
+            taskdef.json > migrate-def.json
+          ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://migrate-def.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "arn=$ARN" >> "$GITHUB_OUTPUT"
+
+      - name: Run database migrations (one-off task, gate on exit code)
+        run: |
+          SUBNETS=$(echo "${{ vars.PRIVATE_SUBNET_IDS }}" | jq -R 'split(",")')
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ vars.ECS_CLUSTER }}" \
+            --task-definition "${{ steps.migrate-def.outputs.arn }}" \
+            --launch-type FARGATE \
+            --network-configuration "{\"awsvpcConfiguration\":{\"subnets\":$SUBNETS,\"securityGroups\":[\"${{ vars.API_SECURITY_GROUP_ID }}\"],\"assignPublicIp\":\"DISABLED\"}}" \
+            --query 'tasks[0].taskArn' --output text)
+          echo "Migration task: $TASK_ARN"
+          aws ecs wait tasks-stopped --cluster "${{ vars.ECS_CLUSTER }}" --tasks "$TASK_ARN"
+          EXIT=$(aws ecs describe-tasks --cluster "${{ vars.ECS_CLUSTER }}" --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+          echo "Migration exit code: $EXIT"
+          test "$EXIT" = "0"
+
+      - name: Render API task definition with new image
+        id: render
+        run: |
+          aws ecs describe-services \
+            --cluster "${{ vars.ECS_CLUSTER }}" --services "${{ vars.ECS_SERVICE }}" \
+            --query 'services[0].taskDefinition' --output text | xargs -I{} \
+          aws ecs describe-task-definition --task-definition {} \
+            --query taskDefinition > api-taskdef.json
+          jq --arg IMG "${{ steps.image.outputs.image }}" \
+            '.containerDefinitions[0].image = $IMG
+             | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                   .compatibilities, .registeredAt, .registeredBy)' \
+            api-taskdef.json > api-taskdef-new.json
+
+      - name: Deploy API service and wait for stability
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: api-taskdef-new.json
+          cluster: ${{ vars.ECS_CLUSTER }}
+          service: ${{ vars.ECS_SERVICE }}
+          wait-for-service-stability: true
+
+      - name: Build web
+        run: |
+          cd apps/web
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Publish web (S3 + CloudFront invalidation)
+        run: |
+          aws s3 sync apps/web/dist "s3://${{ vars.WEB_BUCKET }}" --delete
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" --paths "/*"

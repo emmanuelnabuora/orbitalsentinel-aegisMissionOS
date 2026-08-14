@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---- Theme tokens (RGB triplets; consumed via rgb(var(--c-x) / a)) ----
+   Dark is the default and the brand home. Light values are AA-checked
+   against their usage pairs (ink on navy/midnight >= 7:1; muted >= 4.5:1;
+   status colors as text on midnight >= 4.5:1). */
+:root {
+  color-scheme: dark;
+  --c-navy: 11 18 32;         /* #0B1220 */
+  --c-midnight: 17 24 39;     /* #111827 */
+  --c-raised: 24 33 58;       /* #18213A */
+  --c-line: 31 42 68;         /* #1F2A44 */
+  --c-ink: 229 231 235;       /* #E5E7EB */
+  --c-ink-muted: 156 163 175; /* #9CA3AF */
+  --c-ink-faint: 100 116 139; /* #64748B */
+  --c-on-accent: 255 255 255;
+  --c-orbital: 37 99 235;     /* #2563EB */
+  --c-orbital-deep: 29 78 216;
+  --c-quantum: 124 58 237;
+  --c-mission: 16 185 129;    /* #10B981 */
+  --c-amber: 245 158 11;      /* #F59E0B */
+  --c-critical: 239 68 68;    /* #EF4444 */
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --c-navy: 244 246 251;      /* #F4F6FB — app background */
+  --c-midnight: 255 255 255;  /* panels */
+  --c-raised: 236 240 248;    /* #ECF0F8 */
+  --c-line: 209 218 234;      /* #D1DAEA */
+  --c-ink: 16 24 40;          /* #101828 */
+  --c-ink-muted: 71 84 103;   /* #475467 */
+  --c-ink-faint: 102 112 133; /* #667085 */
+  --c-on-accent: 255 255 255;
+  --c-orbital: 29 78 216;     /* deeper blue for AA on white */
+  --c-orbital-deep: 30 64 175;
+  --c-quantum: 109 40 217;
+  --c-mission: 4 120 87;      /* #047857 */
+  --c-amber: 180 83 9;        /* #B45309 */
+  --c-critical: 185 28 28;    /* #B91C1C */
+}
+
+body {
+  @apply bg-navy text-ink font-sans antialiased;
+}
+
+/* Telemetry, IDs, timestamps, scores — anything read aloud over comms */
+.telemetry {
+  @apply font-mono text-sm tracking-tight;
+}
+
+::selection {
+  @apply bg-orbital/40;
+}
+
+*:focus-visible {
+  @apply outline-none ring-2 ring-orbital ring-offset-2 ring-offset-navy;
+}
+
+/* Brand surfaces keep the dark palette in both themes (the lockup's
+   navy field is part of the mark). Child token classes resolve locally. */
+.brand-panel {
+  --c-navy: 11 18 32;
+  --c-midnight: 17 24 39;
+  --c-raised: 24 33 58;
+  --c-line: 31 42 68;
+  --c-ink: 229 231 235;
+  --c-ink-muted: 156 163 175;
+  --c-ink-faint: 100 116 139;
+}
+
+/* ---- Accessibility baseline (WCAG 2.2 AA) ---- */
+.skip-link {
+  @apply absolute left-2 top-2 z-50 -translate-y-16 rounded bg-orbital px-3 py-2 text-sm font-medium text-on-accent transition-transform;
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
