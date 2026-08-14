@@ -25,6 +25,7 @@ class IngestionCadences:
     bulletins_seconds: int = 300       # 5 min
     catalog_seconds: int = 6 * 3600    # 6 h
     conjunction_seconds: int = 8 * 3600  # 8 h (SOCRATES updates ~3x/day)
+    cdm_seconds: int = 4 * 3600        # 4 h (Space-Track; respects throttling guidance)
     catalog_group: str = "active"
 
 
@@ -60,6 +61,7 @@ class IngestionScheduler:
                 lambda: self.service.refresh_catalog(c.catalog_group),
             ),
             ("conjunctions", c.conjunction_seconds, self.service.poll_conjunctions),
+            ("cdms", c.cdm_seconds, self.service.poll_cdms),
         ]
         for name, interval, fn in specs:
             self._tasks.append(

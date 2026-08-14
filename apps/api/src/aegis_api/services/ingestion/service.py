@@ -22,6 +22,7 @@ from aegis_api.models.enums import AlertSeverity
 from aegis_api.services.ingestion.clients.base import SourceUnavailable
 from aegis_api.services.ingestion.clients.celestrak import CelestrakClient
 from aegis_api.services.ingestion.clients.socrates import SocratesClient
+from aegis_api.services.ingestion.clients.spacetrack import SpaceTrackClient
 from aegis_api.services.ingestion.clients.swpc import SwpcClient
 from aegis_api.services.ingestion.schemas import (
     AlertDraft,
@@ -125,6 +126,7 @@ class IngestionService:
         alert_sink: AlertSink,
         ephemeris_sink: EphemerisSink | None = None,
         socrates: SocratesClient | None = None,
+        spacetrack: SpaceTrackClient | None = None,
         tracked_lookup: TrackedAssetLookup | None = None,
         incident_sink: IncidentSink | None = None,
     ) -> None:
@@ -133,6 +135,7 @@ class IngestionService:
         self._alerts = alert_sink
         self._ephemeris = ephemeris_sink
         self._socrates = socrates
+        self._spacetrack = spacetrack
         self._tracked = tracked_lookup
         self._incidents = incident_sink
 
@@ -239,19 +242,16 @@ class IngestionService:
 
     # -- conjunctions -------------------------------------------------------
 
-    async def poll_conjunctions(self) -> tuple[int, int]:
-        """Ingest SOCRATES conjunctions. Returns (alerts, incidents).
-
-        Escalation rule: a CRITICAL conjunction where either object is a
-        tracked asset auto-opens an incident linked to the alert.
-        """
-        if self._socrates is None:
-            return (0, 0)
-        try:
-            records = await self._socrates.get_conjunctions()
-        except SourceUnavailable:
-            return (0, 0)
-
+    async def _process_conjunctions(
+        self,
+        records: list[ConjunctionRecord],
+        *,
+        source: str,
+        dedupe_key_fn,
+    ) -> tuple[int, int]:
+        """Shared alert-building + escalation logic for any conjunction
+        source (SOCRATES, Space-Track CDMs, ...). Only the dedupe-key
+        strategy and provenance tag differ per source."""
         involved: set[int] = set()
         for c in records:
             involved.update((c.norad_cat_id_1, c.norad_cat_id_2))
@@ -266,11 +266,8 @@ class IngestionService:
                 continue
             involves_tracked = bool({c.norad_cat_id_1, c.norad_cat_id_2} & tracked)
             draft = AlertDraft(
-                source="celestrak",
-                dedupe_key=(
-                    f"socrates:{min(c.norad_cat_id_1, c.norad_cat_id_2)}:"
-                    f"{max(c.norad_cat_id_1, c.norad_cat_id_2)}:{c.tca:%Y%m%d%H%M}"
-                ),
+                source=source,
+                dedupe_key=dedupe_key_fn(c),
                 severity=sev,
                 title=(
                     f"Conjunction: {c.object_name_1} × {c.object_name_2} "
@@ -303,6 +300,57 @@ class IngestionService:
                         reason="Critical conjunction involving a tracked asset",
                     ):
                         incidents += 1
+        return (alerts, incidents)
+
+    async def poll_conjunctions(self) -> tuple[int, int]:
+        """Ingest SOCRATES conjunctions. Returns (alerts, incidents).
+
+        Escalation rule: a CRITICAL conjunction where either object is a
+        tracked asset auto-opens an incident linked to the alert.
+        """
+        if self._socrates is None:
+            return (0, 0)
+        try:
+            records = await self._socrates.get_conjunctions()
+        except SourceUnavailable:
+            return (0, 0)
+
+        def dedupe_key(c: ConjunctionRecord) -> str:
+            # Order-normalized: SOCRATES has no stable per-conjunction id,
+            # so the pair + TCA minute stands in for one.
+            return (
+                f"socrates:{min(c.norad_cat_id_1, c.norad_cat_id_2)}:"
+                f"{max(c.norad_cat_id_1, c.norad_cat_id_2)}:{c.tca:%Y%m%d%H%M}"
+            )
+
+        alerts, incidents = await self._process_conjunctions(
+            records, source="celestrak", dedupe_key_fn=dedupe_key
+        )
         if alerts:
             log.info("conjunctions_ingested", alerts=alerts, incidents=incidents)
+        return (alerts, incidents)
+
+    async def poll_cdms(self) -> tuple[int, int]:
+        """Ingest Space-Track Conjunction Data Messages. Returns
+        (alerts, incidents), same shape and escalation rule as
+        poll_conjunctions().
+
+        Returns (0, 0) with no error for accounts with no registered
+        satellites — Space-Track's CDM class is operator-scoped, not a
+        general feed (see clients/spacetrack.py module docstring).
+        """
+        if self._spacetrack is None:
+            return (0, 0)
+        try:
+            records = await self._spacetrack.get_cdms()
+        except SourceUnavailable:
+            return (0, 0)
+
+        alerts, incidents = await self._process_conjunctions(
+            records,
+            source="spacetrack",
+            dedupe_key_fn=lambda c: f"spacetrack:cdm:{c.cdm_id}",  # type: ignore[attr-defined]
+        )
+        if alerts:
+            log.info("cdms_ingested", alerts=alerts, incidents=incidents)
         return (alerts, incidents)

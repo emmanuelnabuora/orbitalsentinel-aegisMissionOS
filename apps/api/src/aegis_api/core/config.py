@@ -53,6 +53,13 @@ class Settings(BaseSettings):
     sentinel_model: str = "claude-sonnet-5"
     sentinel_max_tokens: int = 1000
 
+    # Space-Track.org (Phase 22). No API key exists for this service —
+    # authentication is your registered account's username/password,
+    # exchanged for a session cookie. Optional: ingestion runs fine
+    # without it (SOCRATES/Celestrak remain the free, keyless sources).
+    space_track_username: str | None = Field(default=None, alias="SPACETRACK_USERNAME")
+    space_track_password: str | None = Field(default=None, alias="SPACETRACK_PASSWORD")
+
     @field_validator("secret_key")
     @classmethod
     def _forbid_default_secret_outside_local(cls, v: str, info) -> str:
