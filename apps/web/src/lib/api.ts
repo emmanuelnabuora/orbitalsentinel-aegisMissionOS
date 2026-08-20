@@ -1,7 +1,7 @@
 /** Typed API client with bearer auth and silent refresh-token rotation. */
 
 import type {
-  Approval, AuditEntry, NotifInbox, ApiKeyCreated, CustomRole, InviteCreated, Member, PermissionCatalog, Workspace,
+  Approval, AuditEntry, NotifInbox, ApiKeyCreated, CustomRole, InviteCreated, Member, PermissionCatalog, ServiceAccount, Workspace,
   Alert, CorrelationResult, IngestResult, LoginResult, MFASetup,
   Perturbation, Report, ReportDetail, Scenario, SimulationResult,
   ThreatIndicator, ThreatIntelSummary, ThreatMatch, Asset, ChatResponse, CryptoRecord, FleetSummary, Incident, IncidentAnalysis,
@@ -132,6 +132,8 @@ export const api = {
     request<User>("/invites/redeem", { method: "POST", body: JSON.stringify({ token, password, full_name }) }),
   createServiceAccount: (slug: string, name: string, email: string, role = "operator") =>
     request<User>(`/workspaces/${slug}/service-accounts`, { method: "POST", body: JSON.stringify({ name, email, role }) }),
+  listServiceAccounts: (slug: string) =>
+    request<ServiceAccount[]>(`/workspaces/${slug}/service-accounts`),
   mintApiKey: (slug: string, accountId: string, name: string) =>
     request<ApiKeyCreated>(`/workspaces/${slug}/service-accounts/${accountId}/keys`, { method: "POST", body: JSON.stringify({ name }) }),
   revokeApiKey: (slug: string, keyId: string) =>

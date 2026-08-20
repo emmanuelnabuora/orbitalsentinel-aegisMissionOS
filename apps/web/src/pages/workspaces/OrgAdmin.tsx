@@ -1,13 +1,19 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { Card, PageHeader, TableShell, Td, Th } from "@/components/ui";
+import { Card, PageHeader, TableShell, Td, Th, timeAgo } from "@/components/ui";
 import { activeWorkspace } from "@/lib/workspaceContext";
-import type { Approval, CustomRole, Member, PermissionCatalog } from "@/lib/types";
+import type { Approval, CustomRole, Member, PermissionCatalog, ServiceAccount } from "@/lib/types";
 
 const WORKSPACE_ROLES = [
   "admin", "operator", "analyst", "soc_manager",
   "incident_responder", "executive", "auditor", "viewer",
 ];
+
+// Service accounts are capped at operator/analyst/viewer server-side
+// (ServiceAccountService.SERVICE_ACCOUNT_MAX_ROLE) — admin is never valid
+// for a non-interactive credential, so it's excluded here rather than
+// offered and rejected on submit.
+const SERVICE_ACCOUNT_ROLES = ["operator", "analyst", "viewer"];
 
 function MemberRoleSelect({
   slug, member, onChanged,
@@ -81,6 +87,89 @@ function MemberCustomRoleSelect({
   );
 }
 
+function ServiceAccountRow({
+  slug, account, onChanged,
+}: { slug: string; account: ServiceAccount; onChanged: () => void }) {
+  const [keyName, setKeyName] = useState("");
+  const [minting, setMinting] = useState(false);
+  const [freshKey, setFreshKey] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const mint = async () => {
+    setErr(null);
+    setMinting(true);
+    try {
+      const r = await api.mintApiKey(slug, account.id, keyName || "default");
+      setFreshKey(r.key);
+      setKeyName("");
+      onChanged();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed to mint key");
+    } finally {
+      setMinting(false);
+    }
+  };
+
+  const revoke = async (keyId: string) => {
+    try {
+      await api.revokeApiKey(slug, keyId);
+      onChanged();
+    } catch {
+      // no-op: list refetch on next reload reflects true state either way
+    }
+  };
+
+  return (
+    <div className="rounded border border-line p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium">{account.full_name}</p>
+          <p className="telemetry text-xs text-ink-muted">{account.email}</p>
+        </div>
+        <p className="text-xs text-ink-faint">{timeAgo(account.created_at)}</p>
+      </div>
+
+      {account.keys.length > 0 && (
+        <div className="mb-2 space-y-1">
+          {account.keys.map((k) => (
+            <div key={k.id} className="flex items-center justify-between rounded bg-navy px-2 py-1">
+              <span className="telemetry text-xs">
+                {k.name} · aegis_sk_{k.prefix}…
+                {k.revoked_at && <span className="ml-1 text-critical">revoked</span>}
+                {!k.revoked_at && k.last_used_at && (
+                  <span className="ml-1 text-ink-faint">last used {timeAgo(k.last_used_at)}</span>
+                )}
+                {!k.revoked_at && !k.last_used_at && <span className="ml-1 text-ink-faint">never used</span>}
+              </span>
+              {!k.revoked_at && (
+                <button onClick={() => revoke(k.id)}
+                  className="text-xs text-critical hover:underline">Revoke</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <input value={keyName} onChange={(e) => setKeyName(e.target.value)}
+          placeholder="Key name (e.g. ingestion-pipeline)" aria-label={`New API key name for ${account.full_name}`}
+          className="flex-1 rounded border border-line bg-navy px-2 py-1 text-xs" />
+        <button onClick={mint} disabled={minting}
+          className="rounded bg-orbital text-on-accent px-3 py-1 text-xs font-medium disabled:opacity-40">
+          Mint key
+        </button>
+      </div>
+      {err && <p className="mt-1 text-xs text-critical">{err}</p>}
+      {freshKey && (
+        <div className="mt-2 rounded border border-amber/40 bg-amber/10 p-2">
+          <p className="mb-1 text-[11px] uppercase tracking-wide text-amber">API key — shown once, copy it now</p>
+          <p className="telemetry break-all select-all text-xs">{freshKey}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function OrgAdmin() {
   const slug = activeWorkspace();
   const [members, setMembers] = useState<Member[]>([]);
@@ -94,11 +183,18 @@ export default function OrgAdmin() {
   const [inviteRole, setInviteRole] = useState("analyst");
   const [issued, setIssued] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [accounts, setAccounts] = useState<ServiceAccount[]>([]);
+  const [acctName, setAcctName] = useState("");
+  const [acctEmail, setAcctEmail] = useState("");
+  const [acctRole, setAcctRole] = useState("operator");
+  const [acctErr, setAcctErr] = useState<string | null>(null);
+  const [acctSaving, setAcctSaving] = useState(false);
 
   const reload = (s: string) => {
     api.workspaceMembers(s).then(setMembers).catch(() => undefined);
     api.customRoles(s).then(setRoles).catch(() => undefined);
     api.approvals(s).then(setApprovals).catch(() => undefined);
+    api.listServiceAccounts(s).then(setAccounts).catch(() => undefined);
   };
 
   useEffect(() => {
@@ -122,6 +218,21 @@ export default function OrgAdmin() {
       setInviteEmail("");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Invite failed");
+    }
+  };
+
+  const createAccount = async () => {
+    setAcctErr(null);
+    setAcctSaving(true);
+    try {
+      await api.createServiceAccount(slug, acctName, acctEmail, acctRole);
+      setAcctName("");
+      setAcctEmail("");
+      reload(slug);
+    } catch (e) {
+      setAcctErr(e instanceof Error ? e.message : "Failed to create service account");
+    } finally {
+      setAcctSaving(false);
     }
   };
 
@@ -270,6 +381,42 @@ export default function OrgAdmin() {
           </div>
         </Card>
       </div>
+
+      <Card>
+        <h3 className="mb-1 text-sm font-semibold">Service accounts &amp; API keys</h3>
+        <p className="mb-3 text-xs text-ink-muted">
+          For programmatic access — integrations, ingestion pipelines, anything
+          authenticating as code rather than a person. Capped at operator/analyst/viewer;
+          never admin. Raw keys are shown once at mint time and can't be retrieved again.
+        </p>
+        <div className="mb-4 flex flex-wrap gap-2">
+          <input value={acctName} onChange={(e) => setAcctName(e.target.value)}
+            placeholder="Account name (e.g. Ingestion Bot)" aria-label="Service account name"
+            className="flex-1 min-w-[180px] rounded border border-line bg-navy px-3 py-2 text-sm" />
+          <input value={acctEmail} onChange={(e) => setAcctEmail(e.target.value)}
+            placeholder="bot@yourdomain.com" type="email" aria-label="Service account email"
+            className="flex-1 min-w-[180px] rounded border border-line bg-navy px-3 py-2 text-sm" />
+          <select value={acctRole} onChange={(e) => setAcctRole(e.target.value)}
+            aria-label="Service account role"
+            className="rounded border border-line bg-navy px-3 py-2 text-sm">
+            {SERVICE_ACCOUNT_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+          <button onClick={createAccount} disabled={!acctName || !acctEmail || acctSaving}
+            className="rounded bg-orbital text-on-accent px-4 py-2 text-sm font-medium disabled:opacity-40">
+            {acctSaving ? "Creating…" : "Create service account"}
+          </button>
+        </div>
+        {acctErr && <p className="mb-3 text-sm text-critical">{acctErr}</p>}
+
+        {accounts.length === 0 && (
+          <p className="text-sm text-ink-faint">No service accounts in this workspace yet.</p>
+        )}
+        <div className="space-y-2">
+          {accounts.map((a) => (
+            <ServiceAccountRow key={a.id} slug={slug} account={a} onChanged={() => reload(slug)} />
+          ))}
+        </div>
+      </Card>
     </div>
   );
 }

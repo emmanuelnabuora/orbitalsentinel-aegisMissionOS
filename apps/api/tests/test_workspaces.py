@@ -155,6 +155,82 @@ async def test_api_key_lifecycle_and_auth(client, admin):
     assert r.status_code == 401
 
 
+async def test_list_service_accounts_returns_accounts_and_keys(client, admin):
+    _, headers = admin
+    await _mk_ws(client, headers, "list-ws")
+    r = await client.post(
+        "/api/v1/workspaces/list-ws/service-accounts",
+        json={"name": "ingest bot", "email": "listbot@orbitalsentinel.space", "role": "operator"},
+        headers=headers,
+    )
+    account_id = r.json()["id"]
+    await client.post(
+        f"/api/v1/workspaces/list-ws/service-accounts/{account_id}/keys",
+        json={"name": "primary"},
+        headers=headers,
+    )
+
+    r = await client.get("/api/v1/workspaces/list-ws/service-accounts", headers=headers)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert len(body) == 1
+    assert body[0]["id"] == account_id
+    assert body[0]["email"] == "listbot@orbitalsentinel.space"
+    assert len(body[0]["keys"]) == 1
+    assert body[0]["keys"][0]["name"] == "primary"
+    # Raw key must never appear in the list response, only at mint time.
+    assert "key" not in body[0]["keys"][0]
+
+
+async def test_service_account_scoped_to_owning_workspace(client, admin):
+    """A service account created under one workspace must not be mintable
+    or revocable, nor listed, from a different workspace — even by a
+    platform admin acting through that other workspace's admin path."""
+    _, headers = admin
+    await _mk_ws(client, headers, "ws-a")
+    await _mk_ws(client, headers, "ws-b")
+
+    r = await client.post(
+        "/api/v1/workspaces/ws-a/service-accounts",
+        json={"name": "a-bot", "email": "abot@orbitalsentinel.space", "role": "operator"},
+        headers=headers,
+    )
+    account_id = r.json()["id"]
+
+    # Minting a key for ws-a's account through ws-b's path must fail.
+    r = await client.post(
+        f"/api/v1/workspaces/ws-b/service-accounts/{account_id}/keys",
+        json={"name": "cross-tenant"},
+        headers=headers,
+    )
+    assert r.status_code == 404, r.text
+
+    # It must still list correctly under its real workspace, and not the other.
+    r = await client.get("/api/v1/workspaces/ws-a/service-accounts", headers=headers)
+    assert [a["id"] for a in r.json()] == [account_id]
+    r = await client.get("/api/v1/workspaces/ws-b/service-accounts", headers=headers)
+    assert r.json() == []
+
+    # Mint the key properly under its real workspace, then confirm revoking
+    # it through the *other* workspace's path also fails.
+    r = await client.post(
+        f"/api/v1/workspaces/ws-a/service-accounts/{account_id}/keys",
+        json={"name": "primary"},
+        headers=headers,
+    )
+    key_id = r.json()["id"]
+    r = await client.delete(
+        f"/api/v1/workspaces/ws-b/service-accounts/keys/{key_id}", headers=headers
+    )
+    assert r.status_code == 404, r.text
+
+    # ...but succeeds through the correct workspace.
+    r = await client.delete(
+        f"/api/v1/workspaces/ws-a/service-accounts/keys/{key_id}", headers=headers
+    )
+    assert r.status_code == 204
+
+
 async def test_last_workspace_admin_guard(client, admin):
     me, headers = admin
     await _mk_ws(client, headers, "guard-ws")

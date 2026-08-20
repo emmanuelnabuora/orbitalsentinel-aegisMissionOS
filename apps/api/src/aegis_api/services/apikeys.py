@@ -83,6 +83,37 @@ class ServiceAccountService:
         return account
 
 
+    async def list_for_workspace(self, workspace_id: uuid.UUID) -> list[tuple[User, list[ApiKey]]]:
+        """Service accounts that are members of this workspace, each paired with its keys.
+
+        No ORM relationship exists between User and ApiKey (keys are looked
+        up by prefix at auth time, never traversed from the user side), so
+        this does the account query and the keys query separately rather
+        than forcing a relationship that only this listing needs.
+        """
+        accounts_stmt = (
+            sa.select(User)
+            .join(WorkspaceMembership, WorkspaceMembership.user_id == User.id)
+            .where(
+                WorkspaceMembership.workspace_id == workspace_id,
+                User.is_service_account.is_(True),
+            )
+            .order_by(User.created_at)
+        )
+        accounts = list((await self.session.execute(accounts_stmt)).scalars())
+        if not accounts:
+            return []
+        account_ids = [a.id for a in accounts]
+        keys_stmt = (
+            sa.select(ApiKey).where(ApiKey.user_id.in_(account_ids)).order_by(ApiKey.created_at)
+        )
+        keys = list((await self.session.execute(keys_stmt)).scalars())
+        keys_by_account: dict[uuid.UUID, list[ApiKey]] = {aid: [] for aid in account_ids}
+        for k in keys:
+            keys_by_account[k.user_id].append(k)
+        return [(a, keys_by_account[a.id]) for a in accounts]
+
+
 class ApiKeyService:
     def __init__(self, session: AsyncSession):
         self.session = session

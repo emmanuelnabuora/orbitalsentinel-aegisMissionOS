@@ -55,3 +55,13 @@ class ApiKeyRead(BaseModel):
 
 class ApiKeyCreated(ApiKeyRead):
     key: str  # full key, shown exactly once
+
+
+class ServiceAccountRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    email: EmailStr
+    full_name: str
+    created_at: datetime
+    keys: list[ApiKeyRead] = []

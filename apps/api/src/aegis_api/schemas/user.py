@@ -21,6 +21,7 @@ class UserRead(BaseModel):
     full_name: str
     roles: list[Role]
     is_active: bool
+    is_service_account: bool = False
     clearance: str = "unclassified"
     mfa_enabled: bool = False
     created_at: datetime

@@ -3,31 +3,28 @@
 import uuid
 from typing import Annotated
 
+import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from aegis_api.api.deps import CurrentUser, SessionDep, get_workspace, require_roles
-from aegis_api.models.enums import Role
-from aegis_api.models.user import User
-from aegis_api.models.workspace import Workspace
-from aegis_api.schemas.access import (
-    ApiKeyCreate,
-    ApiKeyCreated,
-    InviteCreate,
-    InviteCreated,
-    ServiceAccountCreate,
-)
-from aegis_api.schemas.user import UserRead
-from aegis_api.schemas.workspace import (
-    MemberAdd,
-    MemberRead,
-    MemberRoleUpdate,
-    WorkspaceCreate,
-    WorkspaceRead,
-)
+from aegis_api.api.deps import CurrentUser, SessionDep, require_roles
 from aegis_api.core.permissions import (
     PERMISSION_GROUPS,
     SENSITIVE_PERMISSIONS,
     Permission,
+)
+from aegis_api.models.access import ApiKey
+from aegis_api.models.enums import Role
+from aegis_api.models.user import User
+from aegis_api.models.workspace import Workspace, WorkspaceMembership
+from aegis_api.repositories.users import UserRepository
+from aegis_api.schemas.access import (
+    ApiKeyCreate,
+    ApiKeyCreated,
+    ApiKeyRead,
+    InviteCreate,
+    InviteCreated,
+    ServiceAccountCreate,
+    ServiceAccountRead,
 )
 from aegis_api.schemas.rbac import (
     ApprovalDecision,
@@ -37,9 +34,17 @@ from aegis_api.schemas.rbac import (
     CustomRoleRead,
     PermissionCatalog,
 )
+from aegis_api.schemas.user import UserRead
+from aegis_api.schemas.workspace import (
+    MemberAdd,
+    MemberRead,
+    MemberRoleUpdate,
+    WorkspaceCreate,
+    WorkspaceRead,
+)
 from aegis_api.services.apikeys import ApiKeyService, ServiceAccountService
-from aegis_api.services.rbac import ApprovalService, CustomRoleService
 from aegis_api.services.invites import InviteService
+from aegis_api.services.rbac import ApprovalService, CustomRoleService
 from aegis_api.services.workspaces import WorkspaceService
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
@@ -153,6 +158,54 @@ async def create_invite(
 # -- service accounts + API keys -------------------------------------------
 
 
+async def _require_ws_service_account(
+    session: SessionDep, workspace_id: uuid.UUID, account_id: uuid.UUID
+) -> User:
+    """Confirm account_id is a service account AND a member of this workspace.
+
+    Tenant-isolation gate: without this, an admin of workspace A could
+    mint or revoke keys belonging to workspace B's service accounts by
+    supplying an account_id/key_id they'd obtained or guessed, since
+    _require_ws_admin alone only proves admin standing in *some*
+    workspace named `slug` — it says nothing about the target account.
+    """
+    account = await UserRepository(session).get(account_id)
+    if account is None or not account.is_service_account:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Service account not found")
+    membership = (
+        await session.execute(
+            sa.select(WorkspaceMembership).where(
+                WorkspaceMembership.workspace_id == workspace_id,
+                WorkspaceMembership.user_id == account_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if membership is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Service account not found")
+    return account
+
+
+@router.get(
+    "/{slug}/service-accounts",
+    response_model=list[ServiceAccountRead],
+)
+async def list_service_accounts(
+    slug: str, session: SessionDep, user: CurrentUser
+) -> list[ServiceAccountRead]:
+    ws = await _require_ws_admin(session, user, slug)
+    pairs = await ServiceAccountService(session).list_for_workspace(ws.id)
+    return [
+        ServiceAccountRead(
+            id=account.id,
+            email=account.email,
+            full_name=account.full_name,
+            created_at=account.created_at,
+            keys=[ApiKeyRead.model_validate(k) for k in keys],
+        )
+        for account, keys in pairs
+    ]
+
+
 @router.post(
     "/{slug}/service-accounts",
     response_model=UserRead,
@@ -184,11 +237,11 @@ async def mint_api_key(
     session: SessionDep,
     user: CurrentUser,
 ) -> ApiKeyCreated:
-    await _require_ws_admin(session, user, slug)
+    ws = await _require_ws_admin(session, user, slug)
+    await _require_ws_service_account(session, ws.id, account_id)
     key, raw = await ApiKeyService(session).mint(
         account_id=account_id, name=body.name, actor_id=user.id
     )
-    from aegis_api.schemas.access import ApiKeyRead
 
     return ApiKeyCreated(
         **ApiKeyRead.model_validate(key).model_dump(), key=raw
@@ -201,7 +254,11 @@ async def mint_api_key(
 async def revoke_api_key(
     slug: str, key_id: uuid.UUID, session: SessionDep, user: CurrentUser
 ) -> None:
-    await _require_ws_admin(session, user, slug)
+    ws = await _require_ws_admin(session, user, slug)
+    key = await session.get(ApiKey, key_id)
+    if key is None or key.revoked_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "API key not found")
+    await _require_ws_service_account(session, ws.id, key.user_id)
     await ApiKeyService(session).revoke(key_id=key_id, actor_id=user.id)
 
 

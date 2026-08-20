@@ -121,6 +121,13 @@ export interface ApiKeyCreated {
   id: string; name: string; prefix: string; key: string; created_at: string;
   last_used_at: string | null; revoked_at: string | null;
 }
+export interface ApiKeyInfo {
+  id: string; name: string; prefix: string; created_at: string;
+  last_used_at: string | null; revoked_at: string | null;
+}
+export interface ServiceAccount {
+  id: string; email: string; full_name: string; created_at: string; keys: ApiKeyInfo[];
+}
 export interface AuditEntry {
   id: string; actor_id: string | null; action: string; resource_type: string | null;
   resource_id: string | null; detail: Record<string, unknown> | null; created_at: string;
