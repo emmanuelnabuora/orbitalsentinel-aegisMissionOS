@@ -3,7 +3,7 @@ title = "AEGIS MissionOS gitleaks config"
 [extend]
 useDefault = true
 
-[[allowlist]]
+[allowlist]
 description = "Test fixture secret key - not a real credential"
 paths = [
   '''apps/api/tests/conftest\.py'''
