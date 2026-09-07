@@ -92,9 +92,7 @@ class AnthropicProvider:
                 resp.raise_for_status()
                 data = resp.json()
                 return "".join(
-                    b.get("text", "")
-                    for b in data.get("content", [])
-                    if b.get("type") == "text"
+                    b.get("text", "") for b in data.get("content", []) if b.get("type") == "text"
                 )
             except (httpx.TransportError, httpx.HTTPStatusError, ValueError) as exc:
                 last_exc = exc

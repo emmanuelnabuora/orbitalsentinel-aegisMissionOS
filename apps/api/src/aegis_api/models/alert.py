@@ -22,9 +22,7 @@ class Alert(TimestampMixin, Base):
         str_enum(AlertStatus), default=AlertStatus.OPEN, index=True
     )
     source: Mapped[str] = mapped_column(sa.String(100), default="manual")
-    classification: Mapped[str] = mapped_column(
-        sa.String(20), default="unclassified", index=True
-    )
+    classification: Mapped[str] = mapped_column(sa.String(20), default="unclassified", index=True)
     workspace_id: Mapped[uuid.UUID | None] = mapped_column(
         sa.Uuid, sa.ForeignKey("workspaces.id", ondelete="SET NULL"), index=True
     )

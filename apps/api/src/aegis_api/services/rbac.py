@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -123,9 +123,7 @@ class CustomRoleService:
         if role is None or role.status != "active":
             # pending/rejected roles are unusable; same message as unknown
             raise NotFoundError("Custom role not found")
-        membership = await self.session.get(
-            WorkspaceMembership, (workspace_id, user_id)
-        )
+        membership = await self.session.get(WorkspaceMembership, (workspace_id, user_id))
         if membership is None:
             raise NotFoundError("Membership not found")
         membership.custom_role_id = role.id
@@ -144,9 +142,7 @@ class CustomRoleService:
     ) -> WorkspaceMembership:
         """Clear a member's custom role, reverting them to their built-in
         workspace role (membership.role, unaffected by this)."""
-        membership = await self.session.get(
-            WorkspaceMembership, (workspace_id, user_id)
-        )
+        membership = await self.session.get(WorkspaceMembership, (workspace_id, user_id))
         if membership is None:
             raise NotFoundError("Membership not found")
         previous = membership.custom_role_id
@@ -196,13 +192,11 @@ class ApprovalService:
         ):
             raise NotFoundError("Approval request not found")
         if approval.requested_by == actor_id:
-            raise ValidationFailure(
-                "Approval requires a second admin; you requested this change"
-            )
+            raise ValidationFailure("Approval requires a second admin; you requested this change")
 
         approval.status = "approved" if approve else "rejected"
         approval.decided_by = actor_id
-        approval.decided_at = datetime.now(timezone.utc)
+        approval.decided_at = datetime.now(UTC)
         approval.reason = reason
 
         if approval.kind == "custom_role.create":

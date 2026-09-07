@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import secrets
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -54,7 +54,7 @@ class InviteService:
             email=email.lower(),
             role=role,
             token_hash=_hash(raw),
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=ttl_hours),
+            expires_at=datetime.now(UTC) + timedelta(hours=ttl_hours),
             created_by=actor_id,
             workspace_id=workspace_id,
         )
@@ -72,15 +72,13 @@ class InviteService:
 
     async def redeem(self, *, token: str, password: str, full_name: str) -> User:
         invite = (
-            await self.session.execute(
-                sa.select(Invite).where(Invite.token_hash == _hash(token))
-            )
+            await self.session.execute(sa.select(Invite).where(Invite.token_hash == _hash(token)))
         ).scalar_one_or_none()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if (
             invite is None
             or invite.used_at is not None
-            or invite.expires_at.replace(tzinfo=timezone.utc) < now
+            or invite.expires_at.replace(tzinfo=UTC) < now
             or await UserRepository(self.session).get_by_email(invite.email) is not None
         ):
             raise ValidationFailure(GENERIC_INVITE_ERROR)

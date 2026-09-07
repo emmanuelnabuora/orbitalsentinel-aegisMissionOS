@@ -20,12 +20,12 @@ log = get_logger("aegis.ingestion")
 
 @dataclass
 class IngestionCadences:
-    kp_seconds: int = 300              # 5 min
-    solar_wind_seconds: int = 120      # 2 min
-    bulletins_seconds: int = 300       # 5 min
-    catalog_seconds: int = 6 * 3600    # 6 h
+    kp_seconds: int = 300  # 5 min
+    solar_wind_seconds: int = 120  # 2 min
+    bulletins_seconds: int = 300  # 5 min
+    catalog_seconds: int = 6 * 3600  # 6 h
     conjunction_seconds: int = 8 * 3600  # 8 h (SOCRATES updates ~3x/day)
-    cdm_seconds: int = 4 * 3600        # 4 h (Space-Track; respects throttling guidance)
+    cdm_seconds: int = 4 * 3600  # 4 h (Space-Track; respects throttling guidance)
     catalog_group: str = "active"
 
 
@@ -35,9 +35,7 @@ class IngestionScheduler:
     cadences: IngestionCadences = field(default_factory=IngestionCadences)
     _tasks: list[asyncio.Task] = field(default_factory=list)
 
-    async def _loop(
-        self, name: str, interval_s: int, fn: Callable[[], Awaitable[object]]
-    ) -> None:
+    async def _loop(self, name: str, interval_s: int, fn: Callable[[], Awaitable[object]]) -> None:
         # Small initial jitter avoids a thundering herd on process start.
         await asyncio.sleep(min(5, interval_s))
         while True:

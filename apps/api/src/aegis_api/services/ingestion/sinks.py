@@ -102,9 +102,7 @@ class DbIncidentSink:
     async def escalate(self, draft: AlertDraft, reason: str) -> bool:
         async with self._factory() as session:
             alert = (
-                await session.execute(
-                    sa.select(Alert).where(Alert.dedupe_key == draft.dedupe_key)
-                )
+                await session.execute(sa.select(Alert).where(Alert.dedupe_key == draft.dedupe_key))
             ).scalar_one_or_none()
             if alert is None or alert.incident_id is not None:
                 return False

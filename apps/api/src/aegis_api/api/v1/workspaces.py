@@ -52,9 +52,7 @@ router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 PlatformAdmin = Annotated[User, Depends(require_roles())]
 
 
-async def _require_ws_admin(
-    session: SessionDep, user: CurrentUser, slug: str
-) -> Workspace:
+async def _require_ws_admin(session: SessionDep, user: CurrentUser, slug: str) -> Workspace:
     """Workspace admin (or platform admin) gate. Generic 404 otherwise."""
     svc = WorkspaceService(session)
     ws = await svc.get_by_slug(slug)
@@ -71,9 +69,7 @@ async def _require_ws_admin(
 async def create_workspace(
     body: WorkspaceCreate, session: SessionDep, actor: PlatformAdmin
 ) -> WorkspaceRead:
-    ws = await WorkspaceService(session).create(
-        name=body.name, slug=body.slug, owner=actor
-    )
+    ws = await WorkspaceService(session).create(name=body.name, slug=body.slug, owner=actor)
     return WorkspaceRead.model_validate(ws)
 
 
@@ -88,8 +84,7 @@ async def list_members(slug: str, session: SessionDep, user: CurrentUser) -> lis
     svc = WorkspaceService(session)
     ws = await svc.get_by_slug(slug)
     if ws is None or (
-        Role.ADMIN not in set(user.roles)
-        and await svc.membership(ws.id, user.id) is None
+        Role.ADMIN not in set(user.roles) and await svc.membership(ws.id, user.id) is None
     ):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Workspace not found")
     return [MemberRead.model_validate(m) for m in ws.members]
@@ -134,9 +129,7 @@ async def remove_member(
 # -- invites ----------------------------------------------------------------
 
 
-@router.post(
-    "/{slug}/invites", response_model=InviteCreated, status_code=status.HTTP_201_CREATED
-)
+@router.post("/{slug}/invites", response_model=InviteCreated, status_code=status.HTTP_201_CREATED)
 async def create_invite(
     slug: str, body: InviteCreate, session: SessionDep, user: CurrentUser
 ) -> InviteCreated:
@@ -248,9 +241,7 @@ async def mint_api_key(
     )  # key shown exactly once
 
 
-@router.delete(
-    "/{slug}/service-accounts/keys/{key_id}", status_code=status.HTTP_204_NO_CONTENT
-)
+@router.delete("/{slug}/service-accounts/keys/{key_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def revoke_api_key(
     slug: str, key_id: uuid.UUID, session: SessionDep, user: CurrentUser
 ) -> None:
@@ -318,9 +309,7 @@ async def unassign_custom_role(
     slug: str, user_id: uuid.UUID, session: SessionDep, user: CurrentUser
 ) -> None:
     ws = await _require_ws_admin(session, user, slug)
-    await CustomRoleService(session).unassign(
-        workspace_id=ws.id, user_id=user_id, actor_id=user.id
-    )
+    await CustomRoleService(session).unassign(workspace_id=ws.id, user_id=user_id, actor_id=user.id)
 
 
 @router.get("/{slug}/approvals", response_model=list[ApprovalRead])

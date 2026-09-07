@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 import sqlalchemy as sa
+from tests.test_ingestion import make_celestrak_client, make_swpc_client
 
 from aegis_api.models.alert import Alert
 from aegis_api.models.enums import AlertSeverity
@@ -19,9 +20,8 @@ from aegis_api.services.ingestion.sinks import (
     DbIncidentSink,
     DbTrackedAssetLookup,
 )
-from tests.test_ingestion import make_celestrak_client, make_swpc_client
 
-NOW = datetime(2026, 7, 30, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 7, 30, 12, 0, tzinfo=UTC)
 
 SOCRATES_CSV = """NORAD_CAT_ID_1,OBJECT_NAME_1,NORAD_CAT_ID_2,OBJECT_NAME_2,TCA,TCA_RANGE,TCA_RELATIVE_SPEED,MAX_PROB
 25544,ISS (ZARYA),90210,DEBRIS-A,2026-07-30 15:42:00,0.412,14.2,3.1e-4
@@ -43,8 +43,14 @@ def make_socrates_client(csv_text: str = SOCRATES_CSV) -> SocratesClient:
 
 def _conj(**kw) -> ConjunctionRecord:
     base = dict(
-        norad_cat_id_1=1, object_name_1="A", norad_cat_id_2=2, object_name_2="B",
-        tca=NOW, min_range_km=10.0, relative_speed_km_s=10.0, max_probability=1e-9,
+        norad_cat_id_1=1,
+        object_name_1="A",
+        norad_cat_id_2=2,
+        object_name_2="B",
+        tca=NOW,
+        min_range_km=10.0,
+        relative_speed_km_s=10.0,
+        max_probability=1e-9,
     )
     base.update(kw)
     return ConjunctionRecord(**base)
@@ -86,11 +92,21 @@ def make_service(db, with_tracked: bool = True) -> IngestionService:
 async def _seed_tracked(db, *norad_ids: int):
     async with db() as session:
         for nid in norad_ids:
-            session.add(AssetEphemeris(
-                norad_cat_id=nid, object_name=f"OBJ-{nid}", object_id="X",
-                epoch=NOW, mean_motion=15.0, eccentricity=0.0, inclination=51.0,
-                ra_of_asc_node=0.0, arg_of_pericenter=0.0, mean_anomaly=0.0, bstar=0.0,
-            ))
+            session.add(
+                AssetEphemeris(
+                    norad_cat_id=nid,
+                    object_name=f"OBJ-{nid}",
+                    object_id="X",
+                    epoch=NOW,
+                    mean_motion=15.0,
+                    eccentricity=0.0,
+                    inclination=51.0,
+                    ra_of_asc_node=0.0,
+                    arg_of_pericenter=0.0,
+                    mean_anomaly=0.0,
+                    bstar=0.0,
+                )
+            )
         await session.commit()
 
 
@@ -110,14 +126,16 @@ async def test_poll_creates_alerts_and_escalates_tracked_critical(db):
         assert incident.severity == AlertSeverity.CRITICAL
         assert incident.commander_id is None
         linked = (
-            await session.execute(
-                sa.select(Alert).where(Alert.incident_id == incident.id)
-            )
+            await session.execute(sa.select(Alert).where(Alert.incident_id == incident.id))
         ).scalar_one()
         assert linked.metadata_ if hasattr(linked, "metadata_") else True
-        events = list((await session.execute(
-            sa.select(IncidentEvent.kind).where(IncidentEvent.incident_id == incident.id)
-        )).scalars())
+        events = list(
+            (
+                await session.execute(
+                    sa.select(IncidentEvent.kind).where(IncidentEvent.incident_id == incident.id)
+                )
+            ).scalars()
+        )
         assert set(events) == {"created", "alert_linked"}
 
 

@@ -23,7 +23,7 @@ from enum import StrEnum
 class Classification(StrEnum):
     UNCLASSIFIED = "unclassified"
     CUI = "cui"
-    SECRET = "secret"
+    SECRET = "secret"  # noqa: S105 — classification level, not a credential
 
 
 _ORDER: dict[Classification, int] = {

@@ -14,7 +14,7 @@ one per poll. Bulletins key on (product_id, issue_datetime).
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Protocol
 
 from aegis_api.core.logging import get_logger
@@ -67,7 +67,7 @@ class EphemerisSink(Protocol):
 
 
 def _bucket_3h(ts: datetime) -> str:
-    ts = ts.astimezone(timezone.utc)
+    ts = ts.astimezone(UTC)
     return f"{ts:%Y%m%d}T{(ts.hour // 3) * 3:02d}"
 
 
@@ -207,14 +207,10 @@ class IngestionService:
             return 0
         submitted = 0
         for item in issued:
-            first_line = (
-                item.message.splitlines()[0][:120] if item.message else item.product_id
-            )
+            first_line = item.message.splitlines()[0][:120] if item.message else item.product_id
             draft = AlertDraft(
                 source="swpc",
-                dedupe_key=(
-                    f"swpc:issued:{item.product_id}:{item.issue_datetime:%Y%m%d%H%M}"
-                ),
+                dedupe_key=(f"swpc:issued:{item.product_id}:{item.issue_datetime:%Y%m%d%H%M}"),
                 severity=bulletin_severity(item.message),
                 title=f"SWPC bulletin: {first_line}",
                 body=item.message,
@@ -270,8 +266,7 @@ class IngestionService:
                 dedupe_key=dedupe_key_fn(c),
                 severity=sev,
                 title=(
-                    f"Conjunction: {c.object_name_1} × {c.object_name_2} "
-                    f"({c.min_range_km:.2f} km)"
+                    f"Conjunction: {c.object_name_1} × {c.object_name_2} ({c.min_range_km:.2f} km)"
                 ),
                 body=(
                     f"TCA {c.tca:%Y-%m-%d %H:%M} UTC · miss distance "

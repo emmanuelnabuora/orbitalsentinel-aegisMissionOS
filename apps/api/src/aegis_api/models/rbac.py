@@ -59,7 +59,9 @@ class ApprovalRequest(TimestampMixin, Base):
     kind: Mapped[str] = mapped_column(sa.String(50))  # e.g. custom_role.create
     subject_id: Mapped[uuid.UUID] = mapped_column(sa.Uuid)  # e.g. custom_roles.id
     payload: Mapped[dict] = mapped_column(sa.JSON, default=dict)
-    status: Mapped[str] = mapped_column(sa.String(20), default="pending")  # pending|approved|rejected
+    status: Mapped[str] = mapped_column(
+        sa.String(20), default="pending"
+    )  # pending|approved|rejected
     requested_by: Mapped[uuid.UUID] = mapped_column(
         sa.Uuid, sa.ForeignKey("users.id", ondelete="CASCADE")
     )

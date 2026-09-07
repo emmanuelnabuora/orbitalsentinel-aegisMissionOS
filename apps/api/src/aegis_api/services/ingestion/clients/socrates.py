@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import csv
 import io
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from aegis_api.core.logging import get_logger
 from aegis_api.services.ingestion.clients.base import BaseSourceClient
@@ -49,7 +49,7 @@ def _index(header: list[str]) -> dict[str, int] | None:
 def _parse_tca(raw: str) -> datetime:
     cleaned = raw.strip().replace("Z", "+00:00")
     dt = datetime.fromisoformat(cleaned)
-    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
 class SocratesClient(BaseSourceClient):

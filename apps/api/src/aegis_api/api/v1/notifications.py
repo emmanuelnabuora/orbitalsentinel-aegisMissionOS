@@ -27,9 +27,7 @@ async def inbox(
 
 
 @router.post("/{notification_id}/read", status_code=status.HTTP_204_NO_CONTENT)
-async def mark_read(
-    notification_id: uuid.UUID, session: SessionDep, user: CurrentUser
-) -> None:
+async def mark_read(notification_id: uuid.UUID, session: SessionDep, user: CurrentUser) -> None:
     if not await NotificationService(session).mark_read(user.id, notification_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Notification not found")
 

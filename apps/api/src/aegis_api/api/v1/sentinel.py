@@ -1,10 +1,12 @@
 import uuid
 
 from fastapi import APIRouter
+from pydantic import BaseModel as _BaseModel
 
 from aegis_api.api.deps import CurrentUser, SessionDep
 from aegis_api.schemas.sentinel import ChatRequest, ChatResponse, IncidentAnalysis
 from aegis_api.services.sentinel.engine import SentinelService
+from aegis_api.services.sentinel.providers import get_provider as _get_provider
 
 router = APIRouter(prefix="/sentinel", tags=["sentinel"])
 
@@ -19,11 +21,6 @@ async def analyze_incident(
     incident_id: uuid.UUID, session: SessionDep, user: CurrentUser
 ) -> IncidentAnalysis:
     return await SentinelService(session).analyze_incident(incident_id, actor_id=user.id)
-
-
-from pydantic import BaseModel as _BaseModel
-
-from aegis_api.services.sentinel.providers import get_provider as _get_provider
 
 
 class SentinelStatus(_BaseModel):

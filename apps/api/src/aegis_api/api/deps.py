@@ -95,7 +95,8 @@ def require_permission(perm):
         has_permission,
     )
 
-    assert isinstance(perm, Permission)
+    if not isinstance(perm, Permission):
+        raise TypeError(f"Expected Permission, got {type(perm).__name__}")
 
     async def _check(
         session: SessionDep,
@@ -108,9 +109,7 @@ def require_permission(perm):
             from aegis_api.models.workspace import WorkspaceMembership
             from aegis_api.services.rbac import effective_custom_permissions
 
-            membership = await session.get(
-                WorkspaceMembership, (ws.id, user.id)
-            )
+            membership = await session.get(WorkspaceMembership, (ws.id, user.id))
             if membership is not None:
                 if membership.custom_role_id is not None:
                     from aegis_api.models.rbac import CustomRole

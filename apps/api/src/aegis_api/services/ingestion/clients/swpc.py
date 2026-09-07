@@ -10,7 +10,7 @@ Base: https://services.swpc.noaa.gov — free JSON, no authentication.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from aegis_api.services.ingestion.clients.base import BaseSourceClient
 from aegis_api.services.ingestion.schemas import KpReading, SolarWindSummary, SwpcBulletin
@@ -25,7 +25,7 @@ def _parse_swpc_ts(raw: str) -> datetime:
         dt = datetime.fromisoformat(cleaned)
     except ValueError:
         dt = datetime.strptime(cleaned, "%Y-%m-%d %H:%M:%S.%f")
-    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
 def _fnum(v: object) -> float | None:

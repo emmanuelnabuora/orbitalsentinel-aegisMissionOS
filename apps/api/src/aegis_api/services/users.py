@@ -52,9 +52,8 @@ class UserService:
         return await self.repo.list(limit=limit, offset=offset)
 
     async def _admin_count(self) -> int:
-        stmt = (
-            sa.select(sa.func.count(sa.func.distinct(UserRoleAssignment.user_id)))
-            .where(UserRoleAssignment.role == Role.ADMIN)
+        stmt = sa.select(sa.func.count(sa.func.distinct(UserRoleAssignment.user_id))).where(
+            UserRoleAssignment.role == Role.ADMIN
         )
         return (await self.session.execute(stmt)).scalar_one()
 
@@ -76,8 +75,7 @@ class UserService:
         if was_admin and not will_be_admin:
             if await self._admin_count() <= 1:
                 msg = (
-                    "You cannot remove your own admin role — you are the last "
-                    "platform admin"
+                    "You cannot remove your own admin role — you are the last platform admin"
                     if user_id == actor_id
                     else "Cannot remove the last platform admin's admin role"
                 )

@@ -18,9 +18,7 @@ class Incident(TimestampMixin, Base):
     workspace_id: Mapped[uuid.UUID | None] = mapped_column(
         sa.Uuid, sa.ForeignKey("workspaces.id", ondelete="SET NULL"), index=True
     )
-    classification: Mapped[str] = mapped_column(
-        sa.String(20), default="unclassified", index=True
-    )
+    classification: Mapped[str] = mapped_column(sa.String(20), default="unclassified", index=True)
     title: Mapped[str] = mapped_column(sa.String(300))
     summary: Mapped[str | None] = mapped_column(sa.Text)
     severity: Mapped[AlertSeverity] = mapped_column(str_enum(AlertSeverity), index=True)

@@ -1,10 +1,10 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from aegis_api.api.deps import CurrentUser, SessionDep, WorkspaceDep, require_roles
 from aegis_api.core.abac import can_read, visible_markings
-from aegis_api.api.deps import WorkspaceDep, CurrentUser, SessionDep, require_roles
 from aegis_api.models.enums import AlertSeverity, AlertStatus, Role
 from aegis_api.models.user import User
 from aegis_api.schemas.alert import AlertCreate, AlertRead, AlertUpdate
@@ -17,8 +17,14 @@ Operator = Annotated[User, Depends(require_roles(Role.OPERATOR, Role.ANALYST))]
 
 
 @router.post("", response_model=AlertRead, status_code=status.HTTP_201_CREATED)
-async def create_alert(body: AlertCreate, session: SessionDep, actor: Operator, ws: WorkspaceDep) -> AlertRead:
-    return to_read(await AlertService(session).create(body, actor_id=actor.id, workspace_id=ws.id if ws else None))
+async def create_alert(
+    body: AlertCreate, session: SessionDep, actor: Operator, ws: WorkspaceDep
+) -> AlertRead:
+    return to_read(
+        await AlertService(session).create(
+            body, actor_id=actor.id, workspace_id=ws.id if ws else None
+        )
+    )
 
 
 @router.get("", response_model=Page[AlertRead])
@@ -35,7 +41,11 @@ async def list_alerts(
     alerts, total = await AlertService(session).repo.list(
         limit=limit,
         workspace_id=ws.id if ws else None,
-        allowed_markings=visible_markings(viewer.clearance), offset=offset, severity=severity, status=alert_status, asset_id=asset_id
+        allowed_markings=visible_markings(viewer.clearance),
+        offset=offset,
+        severity=severity,
+        status=alert_status,
+        asset_id=asset_id,
     )
     return Page(items=[to_read(a) for a in alerts], total=total, limit=limit, offset=offset)
 

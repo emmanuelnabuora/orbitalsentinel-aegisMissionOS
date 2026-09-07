@@ -1,8 +1,8 @@
 """Phase 13 — fine-grained permission layer."""
 
 from aegis_api.core.permissions import (
-    Permission,
     ROLE_PERMISSIONS,
+    Permission,
     has_permission,
     permissions_for,
 )

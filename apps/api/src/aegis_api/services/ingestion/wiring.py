@@ -24,9 +24,7 @@ def build_scheduler(settings: Settings) -> IngestionScheduler | None:
     factory = get_session_factory()
     spacetrack = None
     if settings.space_track_username and settings.space_track_password:
-        spacetrack = SpaceTrackClient(
-            settings.space_track_username, settings.space_track_password
-        )
+        spacetrack = SpaceTrackClient(settings.space_track_username, settings.space_track_password)
     service = IngestionService(
         swpc=SwpcClient(),
         celestrak=CelestrakClient(),

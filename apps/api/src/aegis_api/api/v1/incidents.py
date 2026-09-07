@@ -1,10 +1,10 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from aegis_api.api.deps import CurrentUser, SessionDep, WorkspaceDep, require_roles
 from aegis_api.core.abac import can_read, visible_markings
-from aegis_api.api.deps import WorkspaceDep, CurrentUser, SessionDep, require_roles
 from aegis_api.models.enums import IncidentStatus, Role
 from aegis_api.models.user import User
 from aegis_api.schemas.common import Page
@@ -25,8 +25,11 @@ Responder = Annotated[User, Depends(require_roles(Role.OPERATOR, Role.ANALYST))]
 
 @router.post("", response_model=IncidentRead, status_code=status.HTTP_201_CREATED)
 async def create_incident(
-    body: IncidentCreate, session: SessionDep, actor: Responder, ws: WorkspaceDep) -> IncidentRead:
-    incident = await IncidentService(session).create(body, actor_id=actor.id, workspace_id=ws.id if ws else None)
+    body: IncidentCreate, session: SessionDep, actor: Responder, ws: WorkspaceDep
+) -> IncidentRead:
+    incident = await IncidentService(session).create(
+        body, actor_id=actor.id, workspace_id=ws.id if ws else None
+    )
     return IncidentRead.model_validate(incident)
 
 
@@ -42,7 +45,9 @@ async def list_incidents(
     incidents, total = await IncidentService(session).repo.list(
         limit=limit,
         workspace_id=ws.id if ws else None,
-        allowed_markings=visible_markings(viewer.clearance), offset=offset, status=incident_status
+        allowed_markings=visible_markings(viewer.clearance),
+        offset=offset,
+        status=incident_status,
     )
     return Page(
         items=[IncidentRead.model_validate(i) for i in incidents],

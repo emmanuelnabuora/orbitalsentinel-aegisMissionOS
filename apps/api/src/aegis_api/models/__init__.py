@@ -6,10 +6,10 @@ from aegis_api.models.asset import Asset, AssetDependency
 from aegis_api.models.audit import AuditLog
 from aegis_api.models.crypto import CryptoRecord
 from aegis_api.models.incident import Incident, IncidentEvent
-from aegis_api.models.rbac import ApprovalRequest, CustomRole, CustomRolePermission
 from aegis_api.models.ingestion import AssetEphemeris
 from aegis_api.models.mission import Mission, MissionAsset
 from aegis_api.models.notification import Notification, WorkspacePreference
+from aegis_api.models.rbac import ApprovalRequest, CustomRole, CustomRolePermission
 from aegis_api.models.report import Report
 from aegis_api.models.scenario import Scenario
 from aegis_api.models.threatintel import ThreatIndicator, ThreatMatch

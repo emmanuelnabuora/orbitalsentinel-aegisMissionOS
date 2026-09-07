@@ -20,9 +20,9 @@ class AssetEphemeris(TimestampMixin, Base):
     object_name: Mapped[str] = mapped_column(sa.String(200), index=True)
     object_id: Mapped[str] = mapped_column(sa.String(50))  # intl designator
     epoch: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True))
-    mean_motion: Mapped[float] = mapped_column(sa.Float)   # rev/day
+    mean_motion: Mapped[float] = mapped_column(sa.Float)  # rev/day
     eccentricity: Mapped[float] = mapped_column(sa.Float)
-    inclination: Mapped[float] = mapped_column(sa.Float)   # deg
+    inclination: Mapped[float] = mapped_column(sa.Float)  # deg
     ra_of_asc_node: Mapped[float] = mapped_column(sa.Float)
     arg_of_pericenter: Mapped[float] = mapped_column(sa.Float)
     mean_anomaly: Mapped[float] = mapped_column(sa.Float)

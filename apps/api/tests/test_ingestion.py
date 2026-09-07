@@ -7,7 +7,7 @@ standard hermetic db fixture (SQLite in-memory / Postgres in CI).
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -29,7 +29,7 @@ from aegis_api.services.ingestion.service import (
 )
 from aegis_api.services.ingestion.sinks import DbAlertSink, DbEphemerisSink
 
-NOW = datetime(2026, 7, 18, 3, 5, tzinfo=timezone.utc)
+NOW = datetime(2026, 7, 18, 3, 5, tzinfo=UTC)
 
 CELESTRAK_GP_JSON = [
     {
@@ -226,7 +226,9 @@ def test_kp_severity_thresholds():
 def test_wind_severity_thresholds():
     assert wind_severity(SolarWindSummary(time_tag=NOW, wind_speed_km_s=500)) is None
     assert wind_severity(SolarWindSummary(time_tag=NOW, wind_speed_km_s=650)) == AlertSeverity.HIGH
-    assert wind_severity(SolarWindSummary(time_tag=NOW, wind_speed_km_s=850)) == AlertSeverity.CRITICAL
+    assert (
+        wind_severity(SolarWindSummary(time_tag=NOW, wind_speed_km_s=850)) == AlertSeverity.CRITICAL
+    )
     assert wind_severity(SolarWindSummary(time_tag=NOW, bz_nt=-12)) == AlertSeverity.HIGH
     assert wind_severity(SolarWindSummary(time_tag=NOW, bz_nt=-20)) == AlertSeverity.CRITICAL
 
@@ -245,9 +247,7 @@ async def test_poll_kp_storm_writes_high_alert(service, session_factory):
     assert draft is not None and draft.severity == AlertSeverity.HIGH
     async with session_factory() as session:
         alert = (
-            await session.execute(
-                sa.select(Alert).where(Alert.dedupe_key == draft.dedupe_key)
-            )
+            await session.execute(sa.select(Alert).where(Alert.dedupe_key == draft.dedupe_key))
         ).scalar_one()
     assert alert.source == "swpc"
     assert alert.severity == AlertSeverity.HIGH
@@ -280,9 +280,7 @@ async def test_poll_solar_wind_critical(service, session_factory):
 async def test_poll_bulletins_severity_and_dedupe(service, session_factory):
     assert await service.poll_swpc_bulletins() == 2
     async with session_factory() as session:
-        sevs = set(
-            (await session.execute(sa.select(Alert.severity))).scalars()
-        )
+        sevs = set((await session.execute(sa.select(Alert.severity))).scalars())
     assert AlertSeverity.MEDIUM in sevs and AlertSeverity.LOW in sevs
     # second pass fully deduped
     assert await service.poll_swpc_bulletins() == 0
@@ -309,9 +307,7 @@ async def test_refresh_catalog_upserts_and_is_idempotent(service, session_factor
     assert len(rows) == 2
     by_id = {r.norad_cat_id: r for r in rows}
     assert by_id[25544].object_name == "ISS (ZARYA)"
-    assert by_id[25544].epoch.replace(tzinfo=timezone.utc) == datetime(
-        2026, 7, 17, 12, 0, tzinfo=timezone.utc
-    )
+    assert by_id[25544].epoch.replace(tzinfo=UTC) == datetime(2026, 7, 17, 12, 0, tzinfo=UTC)
 
 
 async def test_refresh_catalog_noop_without_sink(session_factory):

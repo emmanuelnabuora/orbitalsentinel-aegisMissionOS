@@ -1,10 +1,10 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from aegis_api.api.deps import CurrentUser, SessionDep, WorkspaceDep, require_roles
 from aegis_api.core.abac import can_read, visible_markings
-from aegis_api.api.deps import WorkspaceDep, CurrentUser, SessionDep, require_roles
 from aegis_api.models.enums import AssetStatus, AssetType, Criticality, Role
 from aegis_api.models.user import User
 from aegis_api.schemas.asset import AssetCreate, AssetDependencyCreate, AssetRead, AssetUpdate
@@ -18,8 +18,12 @@ Admin = Annotated[User, Depends(require_roles())]
 
 
 @router.post("", response_model=AssetRead, status_code=status.HTTP_201_CREATED)
-async def create_asset(body: AssetCreate, session: SessionDep, actor: Operator, ws: WorkspaceDep) -> AssetRead:
-    asset = await AssetService(session).create(body, actor_id=actor.id, workspace_id=ws.id if ws else None)
+async def create_asset(
+    body: AssetCreate, session: SessionDep, actor: Operator, ws: WorkspaceDep
+) -> AssetRead:
+    asset = await AssetService(session).create(
+        body, actor_id=actor.id, workspace_id=ws.id if ws else None
+    )
     return AssetRead.model_validate(asset)
 
 

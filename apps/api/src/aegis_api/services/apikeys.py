@@ -13,7 +13,7 @@ from __future__ import annotations
 import hashlib
 import secrets
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -60,17 +60,13 @@ class ServiceAccountService:
             password_hash=hash_password(secrets.token_urlsafe(32)),
             full_name=name,
             is_service_account=True,
-            role_assignments=(
-                [] if workspace_id else [UserRoleAssignment(role=role)]
-            ),
+            role_assignments=([] if workspace_id else [UserRoleAssignment(role=role)]),
         )
         self.session.add(account)
         await self.session.flush()
         if workspace_id is not None:
             self.session.add(
-                WorkspaceMembership(
-                    workspace_id=workspace_id, user_id=account.id, role=role
-                )
+                WorkspaceMembership(workspace_id=workspace_id, user_id=account.id, role=role)
             )
         self.audit.record(
             actor_id=actor_id,
@@ -81,7 +77,6 @@ class ServiceAccountService:
         )
         await self.session.commit()
         return account
-
 
     async def list_for_workspace(self, workspace_id: uuid.UUID) -> list[tuple[User, list[ApiKey]]]:
         """Service accounts that are members of this workspace, each paired with its keys.
@@ -128,9 +123,7 @@ class ApiKeyService:
         prefix = secrets.token_hex(4)  # 8 chars
         secret = secrets.token_urlsafe(32)
         raw = f"{KEY_NAMESPACE}_{prefix}_{secret}"
-        key = ApiKey(
-            user_id=account.id, name=name, prefix=prefix, key_hash=_hash(raw)
-        )
+        key = ApiKey(user_id=account.id, name=name, prefix=prefix, key_hash=_hash(raw))
         self.session.add(key)
         await self.session.flush()
         self.audit.record(
@@ -147,7 +140,7 @@ class ApiKeyService:
         key = await self.session.get(ApiKey, key_id)
         if key is None or key.revoked_at is not None:
             raise NotFoundError("API key not found")
-        key.revoked_at = datetime.now(timezone.utc)
+        key.revoked_at = datetime.now(UTC)
         self.audit.record(
             actor_id=actor_id,
             action="api_key.revoked",
@@ -169,9 +162,7 @@ class ApiKeyService:
             return None
         prefix = parts[2]
         key = (
-            await self.session.execute(
-                sa.select(ApiKey).where(ApiKey.prefix == prefix)
-            )
+            await self.session.execute(sa.select(ApiKey).where(ApiKey.prefix == prefix))
         ).scalar_one_or_none()
         if (
             key is None
@@ -182,6 +173,6 @@ class ApiKeyService:
         account = await UserRepository(self.session).get(key.user_id)
         if account is None or not account.is_active or not account.is_service_account:
             return None
-        key.last_used_at = datetime.now(timezone.utc)
+        key.last_used_at = datetime.now(UTC)
         await self.session.commit()
         return account

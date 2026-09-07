@@ -23,7 +23,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 
@@ -42,7 +42,7 @@ USER_AGENT = "AEGIS-MissionOS/1.0 (OrbitalSentinel ingestion; Space-Track integr
 def _parse_ts(raw: str) -> datetime:
     cleaned = raw.strip().replace("Z", "+00:00")
     dt = datetime.fromisoformat(cleaned)
-    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
 def _fnum(v: object) -> float | None:
@@ -143,13 +143,11 @@ class SpaceTrackClient:
 
     # -- Conjunction Data Messages -------------------------------------------
 
-    async def get_cdms(self, limit: int = 500) -> list["CdmRecord"]:
+    async def get_cdms(self, limit: int = 500) -> list[CdmRecord]:
         """Fetch upcoming CDMs for your organization's registered
         satellites. Returns [] for accounts with none registered — that
         is expected, not an error (see module docstring)."""
-        path = (
-            f"{BASIC_QUERY}/cdm/tca/%3Enow/orderby/tca%20asc/limit/{limit}/format/json"
-        )
+        path = f"{BASIC_QUERY}/cdm/tca/%3Enow/orderby/tca%20asc/limit/{limit}/format/json"
         data = await self._get_json(path)
         if not isinstance(data, list):
             return []
@@ -203,7 +201,7 @@ class CdmRecord(ConjunctionRecord):
     cdm_id: str
 
     @classmethod
-    def from_raw(cls, row: dict) -> "CdmRecord | None":
+    def from_raw(cls, row: dict) -> CdmRecord | None:
         lower = {str(k).lower(): v for k, v in row.items()}
 
         def pick(field: str) -> object | None:

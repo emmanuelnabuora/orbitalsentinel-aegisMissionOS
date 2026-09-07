@@ -18,9 +18,7 @@ class Mission(TimestampMixin, Base):
     workspace_id: Mapped[uuid.UUID | None] = mapped_column(
         sa.Uuid, sa.ForeignKey("workspaces.id", ondelete="SET NULL"), index=True
     )
-    classification: Mapped[str] = mapped_column(
-        sa.String(20), default="unclassified", index=True
-    )
+    classification: Mapped[str] = mapped_column(sa.String(20), default="unclassified", index=True)
     name: Mapped[str] = mapped_column(sa.String(200), index=True)
     description: Mapped[str | None] = mapped_column(sa.Text)
     status: Mapped[MissionStatus] = mapped_column(

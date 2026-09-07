@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -29,7 +29,7 @@ class GPRecord(BaseModel):
     @field_validator("epoch", mode="after")
     @classmethod
     def _utc(cls, v: datetime) -> datetime:
-        return v if v.tzinfo else v.replace(tzinfo=timezone.utc)
+        return v if v.tzinfo else v.replace(tzinfo=UTC)
 
     @property
     def approx_period_minutes(self) -> float:
@@ -43,7 +43,7 @@ class KpReading(BaseModel):
     @field_validator("time_tag", mode="after")
     @classmethod
     def _utc(cls, v: datetime) -> datetime:
-        return v if v.tzinfo else v.replace(tzinfo=timezone.utc)
+        return v if v.tzinfo else v.replace(tzinfo=UTC)
 
 
 class SolarWindSummary(BaseModel):
@@ -55,7 +55,7 @@ class SolarWindSummary(BaseModel):
     @field_validator("time_tag", mode="after")
     @classmethod
     def _utc(cls, v: datetime) -> datetime:
-        return v if v.tzinfo else v.replace(tzinfo=timezone.utc)
+        return v if v.tzinfo else v.replace(tzinfo=UTC)
 
 
 class SwpcBulletin(BaseModel):
@@ -66,7 +66,7 @@ class SwpcBulletin(BaseModel):
     @field_validator("issue_datetime", mode="after")
     @classmethod
     def _utc(cls, v: datetime) -> datetime:
-        return v if v.tzinfo else v.replace(tzinfo=timezone.utc)
+        return v if v.tzinfo else v.replace(tzinfo=UTC)
 
 
 class ConjunctionRecord(BaseModel):
@@ -76,7 +76,7 @@ class ConjunctionRecord(BaseModel):
     object_name_1: str
     norad_cat_id_2: int
     object_name_2: str
-    tca: datetime                    # time of closest approach (UTC)
+    tca: datetime  # time of closest approach (UTC)
     min_range_km: float
     relative_speed_km_s: float
     max_probability: float
@@ -84,7 +84,7 @@ class ConjunctionRecord(BaseModel):
     @field_validator("tca", mode="after")
     @classmethod
     def _tca_utc(cls, v: datetime) -> datetime:
-        return v if v.tzinfo else v.replace(tzinfo=timezone.utc)
+        return v if v.tzinfo else v.replace(tzinfo=UTC)
 
 
 class AlertDraft(BaseModel):

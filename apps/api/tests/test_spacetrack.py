@@ -2,27 +2,26 @@
 
 from __future__ import annotations
 
-import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 import sqlalchemy as sa
+from tests.test_ingestion import make_celestrak_client, make_swpc_client
 
 from aegis_api.models.alert import Alert
 from aegis_api.models.enums import AlertSeverity
 from aegis_api.models.incident import Incident
+from aegis_api.models.ingestion import AssetEphemeris
 from aegis_api.services.ingestion.clients.base import SourceUnavailable
 from aegis_api.services.ingestion.clients.spacetrack import CdmRecord, SpaceTrackClient
 from aegis_api.services.ingestion.service import IngestionService
 from aegis_api.services.ingestion.sinks import DbAlertSink, DbIncidentSink, DbTrackedAssetLookup
-from aegis_api.models.ingestion import AssetEphemeris
-from tests.test_ingestion import make_celestrak_client, make_swpc_client
 
 CDM_ROW = {
     "CDM_ID": "000012345_conj_0000543",
     "TCA": "2026-08-01 03:15:00.000",
-    "MISS_DISTANCE": "180.5",       # meters
-    "RELATIVE_SPEED": "14200.0",    # meters/sec
+    "MISS_DISTANCE": "180.5",  # meters
+    "RELATIVE_SPEED": "14200.0",  # meters/sec
     "COLLISION_PROBABILITY": "2.5e-4",
     "SAT1_OBJECT_DESIGNATOR": "25544",
     "SAT1_OBJECT_NAME": "ISS (ZARYA)",
@@ -33,7 +32,7 @@ CDM_ROW = {
 CDM_ROW_LOW_RISK = {
     "CDM_ID": "000099999_conj_0000001",
     "TCA": "2026-08-01 06:00:00.000",
-    "MISS_DISTANCE": "25000.0",     # 25 km -> below all thresholds
+    "MISS_DISTANCE": "25000.0",  # 25 km -> below all thresholds
     "RELATIVE_SPEED": "10000.0",
     "COLLISION_PROBABILITY": "1.0e-10",
     "SAT1_OBJECT_DESIGNATOR": "61001",
@@ -69,8 +68,12 @@ def make_spacetrack_client(
         base_url="https://www.space-track.org", transport=httpx.MockTransport(handler)
     )
     return SpaceTrackClient(
-        "testuser", "testpass",
-        client=client, max_retries=2, backoff_base_s=0.0, min_request_interval_s=0.0,
+        "testuser",
+        "testpass",
+        client=client,
+        max_retries=2,
+        backoff_base_s=0.0,
+        min_request_interval_s=0.0,
     )
 
 
@@ -88,7 +91,7 @@ async def test_bad_credentials_raise_source_unavailable():
     client = make_spacetrack_client(login_fails=True)
     try:
         await client.get_cdms()
-        assert False, "expected SourceUnavailable"
+        raise AssertionError("expected SourceUnavailable")
     except SourceUnavailable:
         pass
 
@@ -150,12 +153,21 @@ def make_service(db, *, cdm_rows=None) -> IngestionService:
 async def _seed_tracked(db, *norad_ids: int):
     async with db() as session:
         for nid in norad_ids:
-            session.add(AssetEphemeris(
-                norad_cat_id=nid, object_name=f"OBJ-{nid}", object_id="X",
-                epoch=datetime(2026, 8, 1, tzinfo=timezone.utc), mean_motion=15.0,
-                eccentricity=0.0, inclination=51.0, ra_of_asc_node=0.0,
-                arg_of_pericenter=0.0, mean_anomaly=0.0, bstar=0.0,
-            ))
+            session.add(
+                AssetEphemeris(
+                    norad_cat_id=nid,
+                    object_name=f"OBJ-{nid}",
+                    object_id="X",
+                    epoch=datetime(2026, 8, 1, tzinfo=UTC),
+                    mean_motion=15.0,
+                    eccentricity=0.0,
+                    inclination=51.0,
+                    ra_of_asc_node=0.0,
+                    arg_of_pericenter=0.0,
+                    mean_anomaly=0.0,
+                    bstar=0.0,
+                )
+            )
         await session.commit()
 
 
@@ -192,7 +204,8 @@ async def test_poll_cdms_idempotent(db):
 
 async def test_poll_cdms_noop_without_client(db):
     svc = IngestionService(
-        swpc=make_swpc_client(), celestrak=make_celestrak_client(),
+        swpc=make_swpc_client(),
+        celestrak=make_celestrak_client(),
         alert_sink=DbAlertSink(db),
     )
     assert await svc.poll_cdms() == (0, 0)

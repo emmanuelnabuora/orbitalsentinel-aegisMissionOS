@@ -4,23 +4,23 @@ from fastapi import APIRouter
 
 from aegis_api.api.v1 import (
     alerts,
-    audit,
-    notifications,
-    invites,
-    workspaces,
     assets,
+    audit,
     auth,
     digitaltwin,
     health,
     incidents,
+    invites,
     missioniq,
     missions,
+    notifications,
     quantum,
     reports,
     sentinel,
     sso,
     threatintel,
     users,
+    workspaces,
 )
 
 api_router = APIRouter()

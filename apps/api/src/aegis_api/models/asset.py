@@ -22,9 +22,7 @@ class Asset(TimestampMixin, Base):
     )
     criticality: Mapped[Criticality] = mapped_column(str_enum(Criticality), index=True)
     attributes: Mapped[dict] = mapped_column(sa.JSON, default=dict)
-    classification: Mapped[str] = mapped_column(
-        sa.String(20), default="unclassified", index=True
-    )
+    classification: Mapped[str] = mapped_column(sa.String(20), default="unclassified", index=True)
     workspace_id: Mapped[uuid.UUID | None] = mapped_column(
         sa.Uuid, sa.ForeignKey("workspaces.id", ondelete="SET NULL"), index=True
     )

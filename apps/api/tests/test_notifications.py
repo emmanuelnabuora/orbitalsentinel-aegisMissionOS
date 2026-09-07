@@ -37,7 +37,9 @@ async def test_approval_flow_emits_notifications(client, admin, make_user):
     mine = (await client.get("/api/v1/notifications", headers=my_headers)).json()
     assert mine["unread"] == 0
 
-    approval_id = (await client.get("/api/v1/workspaces/nt-a/approvals", headers=my_headers)).json()[0]["id"]
+    approval_id = (
+        await client.get("/api/v1/workspaces/nt-a/approvals", headers=my_headers)
+    ).json()[0]["id"]
     r = await client.post(
         f"/api/v1/workspaces/nt-a/approvals/{approval_id}",
         json={"approve": True, "reason": "ok"},
@@ -82,11 +84,13 @@ async def test_mark_read_and_read_all(client, admin, make_user):
 async def test_invite_redemption_notifies_inviter(client, admin):
     _, headers = admin
     await _mk_ws(client, headers, "nt-c")
-    token = (await client.post(
-        "/api/v1/workspaces/nt-c/invites",
-        json={"email": "joiner@orbitalsentinel.space", "role": "viewer"},
-        headers=headers,
-    )).json()["token"]
+    token = (
+        await client.post(
+            "/api/v1/workspaces/nt-c/invites",
+            json={"email": "joiner@orbitalsentinel.space", "role": "viewer"},
+            headers=headers,
+        )
+    ).json()["token"]
     await client.post(
         "/api/v1/invites/redeem",
         json={"token": token, "password": "long enough password", "full_name": "Joiner"},

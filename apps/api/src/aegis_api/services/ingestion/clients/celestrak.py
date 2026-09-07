@@ -23,9 +23,7 @@ class CelestrakClient(BaseSourceClient):
         return self._parse(data)
 
     async def get_by_catnr(self, norad_cat_id: int) -> GPRecord | None:
-        data = await self._get_json(
-            GP_PATH, params={"CATNR": str(norad_cat_id), "FORMAT": "json"}
-        )
+        data = await self._get_json(GP_PATH, params={"CATNR": str(norad_cat_id), "FORMAT": "json"})
         records = self._parse(data)
         return records[0] if records else None
 

@@ -32,9 +32,7 @@ class WorkspaceService:
         if not _SLUG_RE.match(slug):
             raise ValidationFailure("Slug must be lowercase alphanumeric with hyphens")
         exists = (
-            await self.session.execute(
-                sa.select(Workspace.id).where(Workspace.slug == slug)
-            )
+            await self.session.execute(sa.select(Workspace.id).where(Workspace.slug == slug))
         ).first()
         if exists:
             raise ConflictError("A workspace with this slug already exists")
@@ -57,9 +55,7 @@ class WorkspaceService:
 
     async def get_by_slug(self, slug: str) -> Workspace | None:
         return (
-            await self.session.execute(
-                sa.select(Workspace).where(Workspace.slug == slug)
-            )
+            await self.session.execute(sa.select(Workspace).where(Workspace.slug == slug))
         ).scalar_one_or_none()
 
     async def list_for_user(self, user_id: uuid.UUID) -> list[Workspace]:

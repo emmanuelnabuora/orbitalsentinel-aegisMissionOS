@@ -20,7 +20,9 @@ class Notification(TimestampMixin, Base):
     workspace_id: Mapped[uuid.UUID | None] = mapped_column(
         sa.Uuid, sa.ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
     )
-    kind: Mapped[str] = mapped_column(sa.String(50), index=True)  # approval.requested, alert.critical, member.joined, ...
+    kind: Mapped[str] = mapped_column(
+        sa.String(50), index=True
+    )  # approval.requested, alert.critical, member.joined, ...
     title: Mapped[str] = mapped_column(sa.String(200))
     body: Mapped[str] = mapped_column(sa.String(1000), default="")
     link: Mapped[str | None] = mapped_column(sa.String(200))  # in-app route

@@ -6,7 +6,11 @@ from aegis_api.models.enums import Role
 
 
 async def _mk_ws(client, headers, slug):
-    r = await client.post("/v1/workspaces".replace("/v1", "/api/v1"), json={"name": slug, "slug": slug}, headers=headers)
+    r = await client.post(
+        "/v1/workspaces".replace("/v1", "/api/v1"),
+        json={"name": slug, "slug": slug},
+        headers=headers,
+    )
     assert r.status_code == 201, r.text
     return r.json()
 
@@ -25,7 +29,11 @@ async def test_non_sensitive_role_active_immediately(client, admin):
     await _mk_ws(client, headers, "cr-a")
     r = await client.post(
         "/api/v1/workspaces/cr-a/roles",
-        json={"name": "Fleet Viewer", "slug": "fleet-viewer", "groups": ["fleet-read", "reporting"]},
+        json={
+            "name": "Fleet Viewer",
+            "slug": "fleet-viewer",
+            "groups": ["fleet-read", "reporting"],
+        },
         headers=headers,
     )
     assert r.status_code == 201, r.text
@@ -39,7 +47,11 @@ async def test_sensitive_role_requires_second_admin(client, admin, make_user):
 
     r = await client.post(
         "/api/v1/workspaces/cr-b/roles",
-        json={"name": "Responder Plus", "slug": "responder-plus", "groups": ["detections-triage", "response-actions"]},
+        json={
+            "name": "Responder Plus",
+            "slug": "responder-plus",
+            "groups": ["detections-triage", "response-actions"],
+        },
         headers=headers,
     )
     assert r.status_code == 201, r.text
@@ -137,7 +149,9 @@ async def test_custom_role_grants_permission_via_workspace(client, admin, make_u
         json={"name": "Compliance", "slug": "compliance", "groups": ["governance"]},
         headers=admin_headers,
     )
-    approval = (await client.get("/api/v1/workspaces/cr-d/approvals", headers=admin_headers)).json()[0]
+    approval = (
+        await client.get("/api/v1/workspaces/cr-d/approvals", headers=admin_headers)
+    ).json()[0]
     _, second_headers = await make_user("second3.admin@orbitalsentinel.io", Role.ADMIN)
     await client.post(
         f"/api/v1/workspaces/cr-d/approvals/{approval['id']}",

@@ -21,7 +21,9 @@ async def test_workspace_create_and_membership(client, admin):
 async def test_workspace_slug_conflict(client, admin):
     _, headers = admin
     await _mk_ws(client, headers, "aegis-ws")
-    r = await client.post("/api/v1/workspaces", json={"name": "B", "slug": "aegis-ws"}, headers=headers)
+    r = await client.post(
+        "/api/v1/workspaces", json={"name": "B", "slug": "aegis-ws"}, headers=headers
+    )
     assert r.status_code == 409
 
 
